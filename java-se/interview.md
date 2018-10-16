@@ -356,4 +356,934 @@
   * 字符串常量池（String Pool）保存着所有字符串字面量（literal strings），这些字面量在编译时期就确定。不仅如此，还可以使用 String 的 intern() 方法在运行过程中将字符串添加到 String Pool 中。
   * 在 Java 7 之前，String Pool 被放在运行时常量池中，它属于永久代。而在 Java 7，String Pool 被移到堆中。这是因为永久代的空间有限，在大量使用字符串的场景下会导致 OutOfMemoryError 错误。
 
-* 
+
+## 缓存池
+
+基本类型对应的缓冲池如下：
+
+- boolean values true and false   
+- all byte values
+- short values between -128 and 127
+- int values between -128 and 127
+- char in the range \u0000 to \u007F
+
+#### 示例
+
+new Integer(123) 与 Integer.valueOf(123) 的区别在于：
+
+- new Integer(123) 每次都会新建一个对象；
+
+- Integer.valueOf(123) 会使用缓存池中的对象，多次调用会取得同一个对象的引用。
+
+- 在 Java 8 中，Integer 缓存池的大小默认为 -128~127。
+
+- 编译器会在自动装箱过程调用 valueOf() 方法，因此多个 Integer 实例使用自动装箱来创建并且值相同，那么就会引用相同的对象。
+
+  ```java
+  Integer m = 123;
+  Integer n = 123;
+  System.out.println(m == n); // true
+  ```
+
+#### Java值传递Or引用传递
+
+> Java is always **pass-by-value**
+>
+> ```java
+> public static void main(String[] args) {
+>     Dog aDog = new Dog("Max");
+>     // we pass the object to foo
+>     foo(aDog);
+>     // aDog variable is still pointing to the "Max" dog when foo(...) returns
+>     aDog.getName().equals("Max"); // true
+>     aDog.getName().equals("Fifi"); // false 
+> }
+> 
+> public static void foo(Dog d) {
+>     d.getName().equals("Max"); // true
+>     // change d inside of foo() to point to a new Dog instance "Fifi"
+>     d = new Dog("Fifi");
+>     d.getName().equals("Fifi"); // true
+> }
+> ```
+
+## 关键字
+
+#### final
+
+* 字段
+
+  > - 对于基本类型，final 使数值不变；
+  > - 对于引用类型，final 使引用不变，也就不能引用其它对象，但是被引用的对象本身是可以修改的。
+  >
+  > ```java
+  > final int x = 1;
+  > // x = 2;  // cannot assign value to final variable 'x'
+  > final A y = new A();
+  > y.a = 1;
+  > ```
+
+* 方法
+
+  > 声明方法不能被子类重写。
+  >
+  > private 方法隐式地被指定为 final，如果在子类中定义的方法和基类中的一个 private 方法签名相同，此时子类的方法不是重写基类方法，而是在子类中定义了一个新的方法。
+
+* 类
+
+  声明类不允许被继承。
+
+## 反射
+
+[深入了解反射](https://www.sczyh30.com/posts/Java/java-reflection-1/)
+
+每个类都有一个 **Class** 对象，包含了与类有关的信息。当编译一个新类时，会产生一个同名的 .class 文件，该文件内容保存着 Class 对象。
+
+类加载相当于 Class 对象的加载，类在第一次使用时才动态加载到 JVM 中。也可以使用 `Class.forName("com.mysql.jdbc.Driver")` 这种方式来控制类的加载，该方法会返回一个 Class 对象。
+
+反射可以提供运行时的类信息，并且这个类可以在运行时才加载进来，甚至在编译时期该类的 .class 不存在也可以加载进来。
+
+Class 和 java.lang.reflect 一起对反射提供了支持，java.lang.reflect 类库主要包含了以下三个类：
+
+- **Field** ：可以使用 get() 和 set() 方法读取和修改 Field 对象关联的字段；
+- **Method** ：可以使用 invoke() 方法调用与 Method 对象关联的方法；
+- **Constructor** ：可以用 Constructor 创建新的对象。
+
+**获取class对象的方法集合**，主要有以下几个方法:
+
+* `getDeclaredMethods` 方法返回类或接口声明的所有方法，包括公共、保护、默认（包）访问和私有方法，但不包括继承的方法。
+
+```
+public Method[] getDeclaredMethods() throws SecurityException
+```
+
+- `getMethods` 方法返回某个类的所有公用（public）方法，包括其继承类的公用方法。
+
+```
+public Method[] getMethods() throws SecurityException
+```
+
+- `getMethod` 方法返回一个特定的方法，其中第一个参数为方法名称，后面的参数为方法的参数对应Class的对象。
+
+```
+public Method getMethod(String name, Class<?>... parameterTypes)
+```
+
+**获取构造器信息**
+
+获取类构造器的用法与上述获取方法的用法类似。主要是通过Class类的getConstructor方法得到Constructor类的一个实例，而Constructor类有一个newInstance方法可以创建一个对象实例:
+
+```
+public T newInstance(Object ... initargs)
+```
+
+此方法可以根据传入的参数来调用对应的Constructor创建对象实例。
+
+**获取类的成员变量（字段）信息**
+
+主要是这几个方法，在此不再赘述：
+
+- `getFiled`：访问公有的成员变量
+- `getDeclaredField`：所有已声明的成员变量，但不能得到其父类的成员变量
+
+`getFileds` 和 `getDeclaredFields` 方法用法同上（参照 Method）。
+
+## 异常
+
+Throwable 可以用来表示任何可以作为异常抛出的类，分为两种： **Error** 和 **Exception**。其中 Error 用来表示 JVM 无法处理的错误，Exception 分为两种：
+
+- **受检异常** ：需要用 try...catch... 语句捕获并进行处理，并且可以从异常中恢复；
+- **非受检异常** ：是程序运行时错误，例如除 0 会引发 Arithmetic Exception，此时程序崩溃并且无法恢复
+
+![异常](pic\异常.png)
+
+引申：logback打印异常堆栈
+
+```java
+logger.info("error message:",e)
+```
+
+java 7以上 支持一个try块捕捉多个异常
+
+``` java
+catch(IOException | SQLException | Exception ex){
+     logger.error(ex);
+     throw new MyException(ex.getMessage());
+}
+```
+
+try-with-resource
+
+``` java
+//try块里可以写多个资源的打开
+static String readFirstLineFromFile(String path) throws IOException {
+    try (BufferedReader br =
+                   new BufferedReader(new FileReader(path))) {
+        return br.readLine();
+    }
+}
+```
+
+## 泛型
+
+[泛型详解](http://www.importnew.com/24029.html)
+
+```java
+public class Box<T> {
+    // T stands for "Type"
+    private T t;
+    public void set(T t) { this.t = t; }
+    public T get() { return t; }
+}
+```
+
+#### 泛型方法
+
+声明一个泛型方法很简单，只要在_**返回类型**_前面加上一个类似`<K, V>`的形式就行了：
+
+```java
+public class Util {
+    public static <K, V> boolean compare(Pair<K, V> p1, Pair<K, V> p2) {
+        return p1.getKey().equals(p2.getKey()) &&
+               p1.getValue().equals(p2.getValue());
+    }
+}
+public class Pair<K, V> {
+    private K key;
+    private V value;
+    public Pair(K key, V value) {
+        this.key = key;
+        this.value = value;
+    }
+    public void setKey(K key) { this.key = key; }
+    public void setValue(V value) { this.value = value; }
+    public K getKey()   { return key; }
+    public V getValue() { return value; }
+}
+```
+
+#### 边界符
+
+```java
+//T 必须实现comparable接口
+public static <T extends Comparable<T>> int countGreaterThan(T[] anArray, T elem) {
+    int count = 0;
+    for (T e : anArray)
+        if (e.compareTo(elem) > 0)
+            ++count;
+    return count;
+}
+```
+
+#### 通配符 ？
+
+**Producer Extends, Consumer Super**  PECS原则
+
+频繁往外读取内容的，适合用上界Extends。
+
+经常往里插入的，适合用下界Super。
+
+- “Producer Extends” – 如果你需要一个只读List，用它来produce T，那么使用`? extends T`。
+- “Consumer Super” – 如果你需要一个只写List，用它来consume T，那么使用`? super T`。
+- 如果需要同时读取以及写入，那么我们就不能使用通配符了。
+
+```java
+// 参数为T的子类
+class Fruit {}
+class Apple extends Fruit {}
+class Orange extends Fruit {}
+
+//get时 extends
+static class CovariantReader<T> {
+    T readCovariant(List<? extends T> list) {
+        return list.get(0);
+    }
+}
+
+
+//add时 super
+ static <T> void writeWithWildcard(List<? super T> list, T item) {
+        list.add(item)
+ }
+```
+
+
+
+1) 参数写成：T<? super B>，对于这个泛型，?代表容器里的元素类型，由于只规定了元素必须是B的超类，导致元素没有明确统一的“根”（除了Object这个必然的根），所以这个泛型你其实无法使用它，对吧，除了把元素强制转成Object。所以，对把参数写成这样形态的函数，你函数体内，只能对这个泛型做**插入操作，而无法读**
+
+2) 参数写成： T<? extends B>，由于指定了B为所有元素的“根”，你任何时候都可以安全的用B来使用容器里的元素，但是插入有问题，由于供奉B为祖先的子树有很多，不同子树并不兼容，由于实参可能来自于任何一颗子树，所以你的插入很可能破坏函数实参，所以，对这种写法的形参，**禁止做插入操作，只做读取**
+
+#### Array中可以用泛型吗?
+
+　　Array事实上并不支持泛型，这也是为什么Joshua Bloch在Effective Java一书中建议使用List来代替Array，因为List可以提供编译期的类型安全保证，而Array却不能。	
+
+## 注解
+
+注解本质是一个继承了Annotation的特殊接口，其具体实现类是Java运行时生成的动态代理类。而我们通过反射获取注解时，返回的是Java运行时生成的动态代理对象$Proxy1。通过代理对象调用自定义注解（接口）的方法，会最终调用AnnotationInvocationHandler的invoke方法。该方法会从memberValues这个Map中索引出对应的值。而memberValues的来源是Java常量池。
+
+#### 元注解
+
+* @Documented –注解是否将包含在JavaDoc中
+
+* @Retention –什么时候使用该注解
+
+  >   ●   RetentionPolicy.SOURCE : 在编译阶段丢弃。这些注解在编译结束之后就不再有任何意义，所以它们不会写入字节码。@Override, @SuppressWarnings都属于这类注解。
+  >   ●   RetentionPolicy.CLASS : 在类加载的时候丢弃。在字节码文件的处理中有用。注解默认使用这种方式
+  >   ●   RetentionPolicy.RUNTIME : 始终不会丢弃，运行期也保留该注解，因此可以使用反射机制读取该注解的信息。我们自定义的注解通常使用这种方式。
+
+* @Target – 表示该注解用于什么地方。默认值为任何元素，表示该注解用于什么地方
+
+  >   ● ElementType.CONSTRUCTOR:用于描述构造器
+  >   ● ElementType.FIELD:成员变量、对象、属性（包括enum实例）
+  >   ● ElementType.LOCAL_VARIABLE:用于描述局部变量
+  >   ● ElementType.METHOD:用于描述方法
+  >   ● ElementType.PACKAGE:用于描述包
+  >   ● ElementType.PARAMETER:用于描述参数
+  >   ● ElementType.TYPE:用于描述类、接口(包括注解类型) 或enum声明
+
+* @Inherited – 定义该注释和子类的关系
+
+  > @Inherited 元注解是一个标记注解，@Inherited阐述了某个被标注的类型是被继承的。如果一个使用了@Inherited修饰的annotation类型被用于一个class，则这个annotation将被用于该class的子类
+
+#### 注解示例
+
+```java
+/**
+ * 水果供应者注解
+ */
+@Target(FIELD)   
+@Retention(RUNTIME)
+@Documented
+public @interface FruitProvider {
+    /**
+     * 供应商编号
+     */
+    public int id() default -1;
+    
+    /**
+     * 供应商名称
+     */
+    public String name() default "";
+    
+    /**
+     * 供应商地址
+     */
+    public String address() default "";
+}
+```
+
+#### 引申
+
+如何获取注解
+
+```java
+//获取类上的注解
+Class.getAnnotations() 获取所有的注解，包括自己声明的以及继承的
+Class.getAnnotation(Class< A > annotationClass) 获取指定的注解，该注解可以是自己声明的，也可以是继承的
+Class.getDeclaredAnnotations() 获取自己声明的注解
+//获取方法上的注解
+ method.getAnnotations();
+ Annotation[] deMAnnos = method.getDeclaredAnnotations();
+ Annotation subMAnno = method.getAnnotation(SubAnnotation.class);
+//获取
+
+```
+
+## 容器
+
+
+
+#### Collection
+
+概览
+
+![collection全家桶](pic\collection.png)
+
+
+
+##### 1. Set
+
+- TreeSet：基于红黑树实现，支持有序性操作，例如根据一个范围查找元素的操作。但是查找效率不如 HashSet，HashSet 查找的时间复杂度为 O(1)，TreeSet 则为 O(logN)。
+- HashSet：基于哈希表实现，支持快速查找，但不支持有序性操作。并且失去了元素的插入顺序信息，也就是说使用 Iterator 遍历 HashSet 得到的结果是不确定的。
+- LinkedHashSet：具有 HashSet 的查找效率，且内部使用双向链表维护元素的插入顺序。
+
+##### 2. List
+
+- ArrayList：基于动态数组实现，支持随机访问。
+- Vector：和 ArrayList 类似，但它是线程安全的。
+- LinkedList：基于双向链表实现，只能顺序访问，但是可以快速地在链表中间插入和删除元素。不仅如此，LinkedList 还可以用作栈、队列和双向队列。
+
+##### 3. Queue
+
+- LinkedList：可以用它来实现双向队列。	
+
+- PriorityQueue：基于堆结构实现，可以用它来实现优先队列。
+
+  > 优先队列，可以解决top K问题，内部结构为最大最小堆
+
+#### Map
+
+- TreeMap：基于红黑树实现。
+
+  > 可以用来实现签名时的字段ascii码排序
+
+- HashMap：基于哈希表实现。
+
+- HashTable：和 HashMap 类似，但它是线程安全的，这意味着同一时刻多个线程可以同时写入 HashTable 并且不会导致数据不一致。它是遗留类，不应该去使用它。现在可以使用 ConcurrentHashMap 来支持线程安全，并且 ConcurrentHashMap 的效率会更高，因为 ConcurrentHashMap 引入了分段锁。
+
+- LinkedHashMap：使用双向链表来维护元素的顺序，顺序为插入顺序或者最近最少使用（LRU）顺序
+
+  > ```java
+  > private static final int MAX_ENTRIES = 100;
+  > 
+  > //重写这个方法，可以控制在什么条件下移除最老的元素
+  > //该方法被put和putall调用  默认返回false
+  > @Override
+  > protected boolean removeEldestEntry(Map.Entry eldest) {
+  > 	//return false;
+  >     return size() > MAX_ENTRIES;
+  > }
+  > ```
+
+#### 容器中的设计模式
+
+* 迭代器模式
+
+  > Collection 实现了 Iterable 接口，其中的 iterator() 方法能够产生一个 Iterator 对象，通过这个对象就可以迭代遍历 Collection 中的元素。
+  >
+  > for-each
+
+* 适配器模式
+
+  > java.util.Arrays#asList() 可以把数组类型转换为 List 类型。
+  >
+  > ```java
+  > @SafeVarargs
+  > public static <T> List<T> asList(T... a)
+  > ```
+  >
+  > 应该注意的是 asList() 的参数为泛型的变长参数，不能使用基本类型数组作为参数，只能使用相应的包装类型数组。
+  >
+  > ```java
+  > Integer[] arr = {1, 2, 3};
+  > List list = Arrays.asList(arr);
+  > ```
+  >
+  > 也可以使用以下方式调用 asList()：
+  >
+  > ```java
+  > List list = Arrays.asList(1, 2, 3);
+  > ```
+
+## 一些源码
+
+基于JDK1.8
+
+#### ArrayList
+
+* 实现RandomAccess 接口
+
+* 数组的默认大小为 10。
+
+  > ```java
+  > private static final int DEFAULT_CAPACITY = 10;
+  > ```
+
+* **扩容**
+
+  > 添加元素时使用 ensureCapacityInternal() 方法来保证容量足够，如果不够时，需要使用 grow() 方法进行扩容，新容量的大小为 `oldCapacity + (oldCapacity >> 1)`，也就是旧容量的 1.5 倍。
+  >
+  > 扩容操作需要调用 `Arrays.copyOf()` 把原数组整个复制到新数组中，这个操作代价很高，因此最好在创建 ArrayList 对象时就指定大概的容量大小，减少扩容操作的次数。
+  >
+  > ```java
+  > public boolean add(E e) {
+  >     ensureCapacityInternal(size + 1);  // Increments modCount!!
+  >     elementData[size++] = e;
+  >     return true;
+  > }
+  > 
+  > private void ensureCapacityInternal(int minCapacity) {
+  >     if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+  >         minCapacity = Math.max(DEFAULT_CAPACITY, minCapacity);
+  >     }
+  >     ensureExplicitCapacity(minCapacity);
+  > }
+  > 
+  > private void ensureExplicitCapacity(int minCapacity) {
+  >     modCount++;
+  >     // overflow-conscious code
+  >     if (minCapacity - elementData.length > 0)
+  >         grow(minCapacity);
+  > }
+  > 
+  > private void grow(int minCapacity) {
+  >     // overflow-conscious code
+  >     int oldCapacity = elementData.length;
+  >     int newCapacity = oldCapacity + (oldCapacity >> 1);
+  >     if (newCapacity - minCapacity < 0)
+  >         newCapacity = minCapacity;
+  >     if (newCapacity - MAX_ARRAY_SIZE > 0)
+  >         newCapacity = hugeCapacity(minCapacity);
+  >     // minCapacity is usually close to size, so this is a win:
+  >     elementData = Arrays.copyOf(elementData, newCapacity);
+  > }
+  > ```
+
+* 删除元素
+
+  >需要调用 System.arraycopy() 将 index+1 后面的元素都复制到 index 位置上，该操作的时间复杂度为 O(N)，可以看出 ArrayList 删除元素的代价是非常高的。
+  >
+  >```java
+  >public E remove(int index) {
+  >    rangeCheck(index);
+  >    modCount++;
+  >    E oldValue = elementData(index);
+  >    int numMoved = size - index - 1;
+  >    if (numMoved > 0)
+  >        System.arraycopy(elementData, index+1, elementData, index, numMoved);
+  >    elementData[--size] = null; // clear to let GC do its work
+  >    return oldValue;
+  >}
+  >```
+
+* Fail-Fast 快速失败
+
+  > modCount 用来记录 ArrayList 结构发生变化的次数。结构发生变化是指添加或者删除至少一个元素的所有操作，或者是调整内部数组的大小，仅仅只是设置元素的值不算结构发生变化。
+  >
+  > 在进行序列化或者迭代等操作时，需要比较操作前后 modCount 是否改变，如果改变了需要抛出 ConcurrentModificationException。
+  >
+  > ```java
+  > //序列化
+  > private void writeObject(java.io.ObjectOutputStream s)
+  >     throws java.io.IOException{
+  >     // Write out element count, and any hidden stuff
+  >     int expectedModCount = modCount;
+  >     s.defaultWriteObject();
+  > 
+  >     // Write out size as capacity for behavioural compatibility with clone()
+  >     s.writeInt(size);
+  > 
+  >     // Write out all elements in the proper order.
+  >     for (int i=0; i<size; i++) {
+  >         s.writeObject(elementData[i]);
+  >     }
+  > 
+  >     //这里比较是否发生了改变，改变则抛出异常
+  >     if (modCount != expectedModCount) {
+  >         throw new ConcurrentModificationException();
+  >     }
+  > }
+  > ```
+
+* 序列化
+
+  > ArrayList 基于数组实现，并且具有动态扩容特性，因此保存元素的数组不一定都会被使用，那么就没必要全部进行序列化。
+  >
+  > 保存元素的数组 elementData 使用 transient 修饰，该关键字声明数组默认不会被序列化。
+  >
+  > ```
+  > transient Object[] elementData; // non-private to simplify nested class access
+  > ```
+  >
+  > ArrayList 实现了 writeObject() 和 readObject() 来控制只序列化数组中有元素填充那部分内容。
+  >
+  > ```java
+  > private void readObject(java.io.ObjectInputStream s)
+  >     throws java.io.IOException, ClassNotFoundException {
+  >     elementData = EMPTY_ELEMENTDATA;
+  > 
+  >     // Read in size, and any hidden stuff
+  >     s.defaultReadObject();
+  > 
+  >     // Read in capacity
+  >     s.readInt(); // ignored
+  > 
+  >     if (size > 0) {
+  >         // be like clone(), allocate array based upon size not capacity
+  >         ensureCapacityInternal(size);
+  > 
+  >         Object[] a = elementData;
+  >         // Read in all elements in the proper order.
+  >         for (int i=0; i<size; i++) {
+  >             a[i] = s.readObject();
+  >         }
+  >     }
+  > }
+  > private void writeObject(java.io.ObjectOutputStream s)
+  >     throws java.io.IOException{
+  >     // Write out element count, and any hidden stuff
+  >     int expectedModCount = modCount;
+  >     s.defaultWriteObject();
+  > 
+  >     // Write out size as capacity for behavioural compatibility with clone()
+  >     s.writeInt(size);
+  > 
+  >     // Write out all elements in the proper order.
+  >     for (int i=0; i<size; i++) {
+  >         s.writeObject(elementData[i]);
+  >     }
+  > 
+  >     if (modCount != expectedModCount) {
+  >         throw new ConcurrentModificationException();
+  >     }
+  > }
+  > ```
+  >
+  > 序列化时需要使用 ObjectOutputStream 的 writeObject() 将对象转换为字节流并输出。而 writeObject() 方法在传入的对象存在 writeObject() 的时候会去反射调用该对象的 writeObject() 来实现序列化。反序列化使用的是 ObjectInputStream 的 readObject() 方法，原理类似。
+  >
+  > ```java
+  > ArrayList list = new ArrayList();
+  > ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file));
+  > oos.writeObject(list);
+  > ```
+
+#### Vector
+
+它的实现与 ArrayList 类似，但是使用了 synchronized 进行同步,一般不推荐使用
+
+>```java
+>public synchronized boolean add(E e) {
+>    modCount++;
+>    ensureCapacityHelper(elementCount + 1);
+>    elementData[elementCount++] = e;
+>    return true;
+>}
+>
+>public synchronized E get(int index) {
+>    if (index >= elementCount)
+>        throw new ArrayIndexOutOfBoundsException(index);
+>
+>    return elementData(index);
+>}
+>```
+
+- Vector 是同步的，因此开销就比 ArrayList 要大，访问速度更慢。最好使用 ArrayList 而不是 Vector，因为同步操作完全可以由程序员自己来控制；
+- Vector 每次扩容请求其大小的 2 倍空间，而 ArrayList 是 1.5 倍。
+
+##### 替代vector
+
+可以使用 `Collections.synchronizedList();` 得到一个线程安全的 ArrayList。
+
+```java
+List<String> list = new ArrayList<>();
+List<String> synList = Collections.synchronizedList(list);
+```
+
+也可以使用 concurrent 并发包下的 CopyOnWriteArrayList 类。
+
+```java
+List<String> list = new CopyOnWriteArrayList<>();
+```
+
+#### CopyOnWriteArrayList
+
+写操作在一个复制的数组上进行，读操作还是在原始数组中进行，读写分离，互不影响。
+
+写操作需要加锁，防止并发写入时导致写入数据丢失。
+
+写操作结束之后需要把原始数组指向新的复制数组。
+
+```java
+public boolean add(E e) {
+    //写加锁保证同步
+    final ReentrantLock lock = this.lock;
+    lock.lock();
+    try {
+        Object[] elements = getArray();
+        int len = elements.length;
+        //再每添加一个元素都要复制一份，然后在复制的数组里添加元素
+        Object[] newElements = Arrays.copyOf(elements, len + 1);  
+        newElements[len] = e;
+        //添加完成后，读数组再指向新数组
+        setArray(newElements);
+        return true;
+    } finally {
+        lock.unlock();
+    }
+}
+
+final void setArray(Object[] a) {
+    array = a;
+}
+@SuppressWarnings("unchecked")
+private E get(Object[] a, int index) {
+    return (E) a[index];
+}
+```
+
+#### 适用场景
+
+CopyOnWriteArrayList 在写操作的同时允许读操作，大大提高了读操作的性能，因此很适合读多写少的应用场景。
+
+但是 CopyOnWriteArrayList 有其缺陷：
+
+- **内存占用**：在写操作时需要复制一个新的数组，使得内存占用为原来的两倍左右；
+- **数据不一致**：读操作不能读取实时性的数据，因为部分写操作的数据还未同步到读数组中。
+
+所以 CopyOnWriteArrayList 不适合内存敏感以及对实时性要求很高的场景。
+
+#### LinkedList
+
+基于双向链表实现，使用 Node 存储链表节点信息。
+
+```java
+private static class Node<E> {
+    E item;
+    Node<E> next;
+    Node<E> prev;
+}
+```
+
+每个链表存储了 first 和 last 指针：
+
+```java
+transient Node<E> first;
+transient Node<E> last;
+```
+
+##### _ArrayList比较_
+
+- ArrayList 基于动态数组实现，LinkedList 基于双向链表实现；
+- ArrayList 支持随机访问，LinkedList 不支持；
+- LinkedList 在任意位置添加删除元素更快。
+
+
+
+#### HashMap
+
+JDK1.7
+
+
+
+#### 存储结构
+
+内部包含了一个 Entry 类型的数组 table。
+
+```java
+transient Entry[] table;
+```
+
+Entry 存储着键值对。它包含了四个字段，从 next 字段我们可以看出 Entry 是一个链表。即数组中的每个位置被当成一个桶，一个桶存放一个链表。HashMap 使用拉链法来解决冲突，同一个链表中存放哈希值相同的 Entry。
+
+![hashmap结构](pic\hashmap_entry.png)
+
+```java
+static class Entry<K,V> implements Map.Entry<K,V> {
+    final K key;
+    V value;
+    Entry<K,V> next;   //链表
+    int hash;      //节点hash值
+
+    Entry(int h, K k, V v, Entry<K,V> n) {
+        value = v;
+        next = n;
+        key = k;
+        hash = h;
+    }
+
+    public final K getKey() {
+        return key;
+    }
+
+    public final V getValue() {
+        return value;
+    }
+
+    public final V setValue(V newValue) {
+        V oldValue = value;
+        value = newValue;
+        return oldValue;
+    }
+
+    public final boolean equals(Object o) {
+        if (!(o instanceof Map.Entry))
+            return false;
+        Map.Entry e = (Map.Entry)o;
+        Object k1 = getKey();
+        Object k2 = e.getKey();
+        if (k1 == k2 || (k1 != null && k1.equals(k2))) {
+            Object v1 = getValue();
+            Object v2 = e.getValue();
+            if (v1 == v2 || (v1 != null && v1.equals(v2)))
+                return true;
+        }
+        return false;
+    }
+
+    public final int hashCode() {
+        return Objects.hashCode(getKey()) ^ Objects.hashCode(getValue());
+    }
+
+    public final String toString() {
+        return getKey() + "=" + getValue();
+    }
+}
+```
+
+#### 拉链法的工作原理
+
+```java
+HashMap<String, String> map = new HashMap<>();
+map.put("K1", "V1");
+map.put("K2", "V2");
+map.put("K3", "V3");
+```
+
+- 新建一个 HashMap，默认大小为 16；
+- 插入 <K1,V1> 键值对，先计算 K1 的 hashCode 为 115，使用除留余数法得到所在的桶下标 115%16=3。
+- 插入 <K2,V2> 键值对，先计算 K2 的 hashCode 为 118，使用除留余数法得到所在的桶下标 118%16=6。
+- 插入 <K3,V3> 键值对，先计算 K3 的 hashCode 为 118，使用除留余数法得到所在的桶下标 118%16=6，插在 <K2,V2> 前面。
+
+应该注意到链表的插入是以**头插法**方式进行的，例如上面的 <K3,V3> 不是插在 <K2,V2> 后面，而是插入在链表头部。
+
+查找需要分成两步进行：
+
+- 计算键值对所在的桶；
+- 在链表上顺序查找，时间复杂度显然和链表的长度成正比。（jdk1.7）
+
+#### PUT 操作
+
+JDK1.8版本
+
+```java
+    final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
+                   boolean evict) {
+        Node<K,V>[] tab; Node<K,V> p; int n, i;
+        if ((tab = table) == null || (n = tab.length) == 0)
+            //n为当前table数组的长度
+            n = (tab = resize()).length;
+        //如果table的该位置为null，则把元素放到该位置，把table该位置的元素赋值给p
+        //(n - 1) & hash]取模，寻找桶位置
+        if ((p = tab[i = (n - 1) & hash]) == null)
+            tab[i] = newNode(hash, key, value, null);
+        else {
+            Node<K,V> e; K k;
+            //如果该位置头结点hash值一样并且key也相同，赋值给e
+            if (p.hash == hash &&
+                ((k = p.key) == key || (key != null && key.equals(k))))
+                e = p;
+            //如果该节点已经为treeNode，则调用putTreeVal添加元素
+            else if (p instanceof TreeNode)
+                e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);
+            else {
+                for (int binCount = 0; ; ++binCount) {
+                    if ((e = p.next) == null) {
+                        //头插法 插入节点
+                        p.next = newNode(hash, key, value, null);
+                        //如果该bucket容量超过REEIFY_THRESHOLD(8)，则转为红黑树结构
+                        if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
+                            treeifyBin(tab, hash);
+                        break;
+                    }
+                    if (e.hash == hash &&
+                        ((k = e.key) == key || (key != null && key.equals(k))))
+                        break;
+                    p = e;
+                }
+            }
+            //如果相同则替换
+            if (e != null) { // existing mapping for key
+                V oldValue = e.value;
+                if (!onlyIfAbsent || oldValue == null)
+                    e.value = value;
+                afterNodeAccess(e);
+                return oldValue;
+            }
+        }
+        ++modCount;
+        if (++size > threshold)
+            resize();
+        afterNodeInsertion(evict);
+        return null;
+    }
+```
+
+* 如果key=null，则hash值为0，即放入table的第一个位置
+
+  ```java
+  public V put(K key, V value) {
+      return putVal(hash(key), key, value, false, true);
+  }
+  
+   static final int hash(Object key) {
+          int h;
+          return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+      }
+  ```
+
+
+
+#### 确定桶下标
+
+1. 计算hahs值
+
+2. 取模
+
+   > **为什么table容量为2的n次方？**
+   >
+   > 令 x = 1<<4，即 x 为 2 的 4 次方，它具有以下性质：
+   >
+   > ```
+   > x   : 00010000
+   > x-1 : 00001111
+   > ```
+   >
+   > 令一个数 y 与 x-1 做与运算，可以去除 y 位级表示的第 4 位以上数：
+   >
+   > ```
+   > y       : 10110010
+   > x-1     : 00001111
+   > y&(x-1) : 00000010
+   > ```
+   >
+   > 这个性质和 y 对 x 取模效果是一样的：
+   >
+   > ```
+   > y   : 10110010
+   > x   : 00010000
+   > y%x : 00000010
+   > ```
+   >
+   > 我们知道，位运算的代价比求模运算小的多，因此在进行这种计算时用位运算的话能带来更高的性能。
+   >
+   > 确定桶下标的最后一步是将 key 的 hash 值对桶个数取模：hash%capacity，如果能保证 capacity 为 2 的 n 次方，那么就可以将这个操作转换为位运算。
+   >
+   > ```java
+   > static int indexFor(int h, int length) {
+   >     return h & (length-1);
+   > }
+   > ```
+
+#### 扩容
+
+扩容相关的参数主要有：capacity、size、threshold 和 load_factor。
+
+| 参数       | 含义                                                         |
+| ---------- | ------------------------------------------------------------ |
+| capacity   | table 的容量大小，默认为 16。需要注意的是 capacity 必须保证为 2 的 n 次方。 |
+| size       | table 的实际使用量。                                         |
+| threshold  | size 的临界值，size 必须小于 threshold，如果大于等于，就必须进行扩容操作。 |
+| loadFactor | 装载因子，table 能够使用的比例，threshold = capacity * loadFactor。 |
+
+```java
+//当需要扩容时，新的容量为 2倍
+newCap = oldCap << 1
+```
+
+初始化保证table容量为2的倍数，当用户初始化hashmao时指定容量
+
+```java
+/**
+ * Returns a power of two size for the given target capacity.
+ */
+static final int tableSizeFor(int cap) {
+    int n = cap - 1;
+    n |= n >>> 1;
+    n |= n >>> 2;
+    n |= n >>> 4;
+    n |= n >>> 8;
+    n |= n >>> 16;
+    return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
+}
+```
+
